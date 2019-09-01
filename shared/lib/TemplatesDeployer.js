@@ -47,11 +47,11 @@ module.exports = class TemplateDeployer {
   }
 
   async _checkAppsDeployment() {
-    for (const { name, contractName, openApm } of this.options.apps) {
+    for (const { name, contractName, openApm, libs = [] } of this.options.apps) {
       if (await this._isPackageRegistered(name)) {
         this.log(`Using registered ${name} app`)
       } else if (await this.isLocal()) {
-        await this._registerApp(name, contractName, openApm)
+        await this._registerApp(name, contractName, openApm, libs)
       } else {
         this.log(`No ${name} app registered`)
       }
@@ -220,8 +220,15 @@ module.exports = class TemplateDeployer {
     return this.ens.owner(aragonIDHash)
   }
 
-  async _registerApp(name, contractName, openApm) {
-    const app = await this.artifacts.require(contractName).new()
+  async _registerApp(name, contractName, openApm, libs) {
+    const Contract = this.artifacts.require(contractName)
+    let libAddress
+    for (const lib of libs) {
+      this.log(`Linking ${lib} library to ${contractName}`)
+      libAddress = (await this.artifacts.require(lib).new()).address
+      await Contract.link(lib, libAddress)
+    }
+    const app = await Contract.new()
     if (openApm) {
       return this._registerOpenPackage(name, app)
     } else {
